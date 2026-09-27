@@ -6,51 +6,96 @@ Our solution implements a **4-Context Deterministic Composition Engine** for Ver
 
 ### Core Architecture Highlights
 
-1. **Stateful REST Endpoint Contract**: Implements all 5 required endpoints (`/v1/context`, `/v1/tick`, `/v1/reply`, `/v1/healthz`, `/v1/metadata`) using FastAPI.
-2. **Context Versioning & Deduplication**: Idempotent context storage keyed on `(scope, context_id)` with version enforcement to guarantee state consistency across ticks.
-3. **Multi-Turn Intent & Auto-Reply Filter**:
-   - **Auto-Reply Detection**: Tracks merchant reply repetitions and canned WhatsApp Business signatures (`"Thank you for contacting..."`, `"automated message"`). Backs off or exits gracefully to eliminate turn pollution.
-   - **Intent Transition Handler**: When a merchant signals commitment (`"yes"`, `"do it"`, `"go ahead"`, `"update my profile"`), Vera switches from qualifying mode to immediate execution reporting.
-   - **Hostile/Opt-Out Exit**: Respects merchant opt-outs (`"stop"`, `"spam"`) with immediate polite closure and zero-spam enforcement.
-4. **5-Dimension Compulsion Optimization**:
-   - **Specificity**: Anchors on verifiable numbers (views, calls, CTR vs peer medians, prices like `₹299`, and research citations like `JIDA Oct 2026 p.14`).
-   - **Category Fit**: Strict voice matching (clinical/peer for dentists, warm for salons, practical for pharmacies, operator-tone for restaurants). Taboo terms like `"guaranteed"` are strictly avoided.
-   - **Merchant Fit**: Personalizes to locality, owner name, active catalog offers, and language preferences (`hi-en mix` Hindi-English code-mix).
-   - **Trigger Relevance**: Explicitly connects *why now* to the trigger payload.
-   - **Single Primary CTA**: Ensures every outbound ends in a single low-friction CTA (binary YES/NO or open-ended single question).
+1. **Stateful REST Endpoint Contract:** Implements all 5 required endpoints (`/v1/context`, `/v1/tick`, `/v1/reply`, `/v1/healthz`, `/v1/metadata`) using FastAPI.
+2. **Context Versioning & Deduplication:** Idempotent context storage keyed on `(scope, context_id)` with version enforcement.
+3. **Multi-Turn Intent & Auto-Reply Filter:** Tracks merchant replies, detects opt-outs/automated replies, and handles intent transitions.
+4. **Compulsion Optimization:** Uses specificity, category fit, merchant fit, trigger relevance, and a single primary CTA.
 
 ---
 
 ## 2. Directory & Component Structure
 
-```
-vera_bot/
-├── bot.py                  # FastAPI REST server for judge harness integration
-├── composer.py             # Core 4-Context composition & reply engine
-├── state.py                # Thread-safe context store, version manager & conversation tracker
-├── generate_submission.py  # Benchmark builder for submission.jsonl (30 test pairs)
-├── submission.jsonl        # Outputs for 30 canonical test pairs
-└── README.md               # Architecture documentation & execution guide
+```text
+magicpin/
+├── bot.py                  # FastAPI REST server
+├── composer.py             # Core composition & reply engine
+├── state.py                # Context store and conversation tracker
+├── generate_submission.py  # Benchmark builder
+├── submission.jsonl        # Benchmark outputs
+├── requirements.txt        # Python dependencies
+└── README.md
 ```
 
 ---
 
-## 3. How to Run & Verify
+## 3. Run Locally
 
-### Step 1: Generate submission JSONL
+Install dependencies:
+
 ```bash
-python vera_bot/generate_submission.py
+pip install -r requirements.txt
 ```
 
-### Step 2: Start the Vera Bot REST Server
+Start the web server:
+
 ```bash
-python vera_bot/bot.py
-# Server starts at http://localhost:8080
+uvicorn bot:app --host 0.0.0.0 --port 8080
 ```
 
-### Step 3: Run the Official Judge Simulator
-In another terminal:
-```bash
-python judge_simulator.py
+Open:
+
+```text
+http://localhost:8080/
+http://localhost:8080/docs
+http://localhost:8080/v1/healthz
 ```
-This runs warmup, tick tests, auto-reply detection, intent transitions, and hostile scenario evaluations.
+
+You can also run `python bot.py`; it uses the `PORT` environment variable when available and falls back to port 8080 locally.
+
+---
+
+## 4. Deploy on Render
+
+Create a **Web Service** using this GitHub repository and the `main` branch.
+
+Use these settings:
+
+**Build Command**
+
+```bash
+pip install -r requirements.txt
+```
+
+**Start Command**
+
+```bash
+uvicorn bot:app --host 0.0.0.0 --port $PORT
+```
+
+No hard-coded Render port is required. Render supplies `$PORT` automatically.
+
+After deployment, verify:
+
+```text
+https://YOUR-SERVICE.onrender.com/
+https://YOUR-SERVICE.onrender.com/v1/healthz
+https://YOUR-SERVICE.onrender.com/docs
+```
+
+The root endpoint should return a small JSON response confirming that the web service is running.
+
+## 5. Generate Submission JSONL
+
+```bash
+python generate_submission.py
+```
+
+## 6. API Endpoints
+
+- `GET /` — service status
+- `GET /v1/healthz` — health check
+- `GET /v1/metadata` — team and project metadata
+- `POST /v1/context` — push context
+- `POST /v1/tick` — process available triggers
+- `POST /v1/reply` — process a merchant reply
+- `/docs` — interactive FastAPI Swagger documentation
